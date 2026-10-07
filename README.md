@@ -1,8 +1,6 @@
 # GeoMeasure API
 
-![tests](https://github.com/Kshitij9137/geo-measure-api/actions/workflows/tests.yml/badge.svg)
-![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![license](https://img.shields.io/badge/license-MIT-green)
+
 
 A backend service that accepts a geospatial file (KML or zipped Shapefile), extracts every
 feature, and returns per-feature measurements — **area in square metres** for polygons and
