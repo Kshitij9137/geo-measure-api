@@ -4,16 +4,19 @@ A backend service that accepts a geospatial file (**KML** or a **zipped Shapefil
 feature, and returns per-feature geometry, CRS, attributes and **area / length measurements calculated
 in a proper projected coordinate system**.
 
-![tests](https://github.com/<your-username>/geo-measure-api/actions/workflows/tests.yml/badge.svg)
+![tests](https://github.com/Kshitij9137/geo-measure-api/actions/workflows/tests.yml/badge.svg)
 
-- **111 tests, 98% coverage**, run against both SQLite and PostgreSQL 16
+- **111 tests pass locally; 97% application-code coverage** (test modules excluded)
+- GitHub Actions is configured to run lint, migration checks and tests against PostgreSQL 16
 - Measurements cross-checked against independent **geodesic (ellipsoidal)** calculations
 - Hardened ZIP handling, graceful per-feature error handling, consistent error format, pagination, OpenAPI docs
+
+**Repository:** [Kshitij9137/geo-measure-api](https://github.com/Kshitij9137/geo-measure-api)
 
 ## Contents
 [Quick start](#quick-start) · [API](#api) · [Architecture](#architecture) · [CRS handling](#crs-handling) ·
 [Design decisions](#design-decisions-and-alternatives-considered) · [Error handling](#error-handling) ·
-[Testing](#testing) · [Known limitations](#known-limitations) · [Future scope](#future-scope) · [What I learned](#what-i-learned)
+[Testing](#testing) · [Known limitations](#known-limitations) · [Future scope](#future-scope) · [Learning takeaways](#learning-takeaways)
 
 ## Tech stack
 
@@ -27,18 +30,43 @@ PostgreSQL · Docker · pytest · GitHub Actions · drf-spectacular (OpenAPI/Swa
 ### Option A: Docker (PostgreSQL included)
 
 ```bash
-git clone https://github.com/<your-username>/geo-measure-api.git
+git clone https://github.com/Kshitij9137/geo-measure-api.git
 cd geo-measure-api
 docker compose up --build
 ```
 
 API on <http://localhost:8000>, interactive docs on <http://localhost:8000/api/docs/>.
 
+Docker Compose startup has been verified locally: PostgreSQL became healthy, migrations completed, and
+Gunicorn started listening on port 8000. The command above runs in the foreground; pressing `Ctrl+C`
+stops the services. To leave them running in the background instead:
+
+```powershell
+docker compose up --build -d
+docker compose ps
+docker compose logs -f web
+```
+
+Stop the background services with `docker compose down`.
+
 ### Option B: Local
 
+PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+python manage.py migrate
+python manage.py runserver
+```
+
+macOS / Linux:
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
 python manage.py migrate
 python manage.py runserver
 ```
@@ -61,19 +89,24 @@ To use PostgreSQL locally, set `DATABASE_URL=postgres://user:pass@localhost:5432
 | `plots_utm43n_shapefile.zip` | Same polygons already in EPSG:32643 (measured in place) |
 | `roads_webmercator_shapefile.zip` | Line in EPSG:3857, "projected" but area/length-distorting |
 
-```bash
-curl -F "file=@sample_data/survey.kml" http://localhost:8000/api/files/
-curl http://localhost:8000/api/files/<id>/
-curl http://localhost:8000/api/files/<id>/measurements/
+```powershell
+$response = curl.exe -F "file=@sample_data/survey.kml" http://localhost:8000/api/files/ | ConvertFrom-Json
+$fileId = $response.id
+curl.exe "http://localhost:8000/api/files/$fileId/"
+curl.exe "http://localhost:8000/api/files/$fileId/measurements/"
 ```
 
 ### Run the tests
 
 ```bash
-pytest                                   # 111 tests
-pytest --cov=geospatial --cov-report=term-missing
+pytest
+pytest --cov=geospatial.api --cov=geospatial.services --cov=geospatial.models --cov=geospatial.exceptions --cov-report=term-missing
 ruff check .
 ```
+
+The local SQLite run completed with **111 passing tests** and **97% coverage of the application modules**
+(the test modules are excluded from that coverage figure). The GitHub Actions workflow is configured to run
+the tests against PostgreSQL 16 as well.
 
 ### Configuration
 
@@ -199,7 +232,7 @@ DRF ViewSet (geospatial/api)         thin: validate → persist → delegate →
 validators.py                        extension, size, content sniffing (is it really a ZIP / KML?)
   │
   ▼
-processor.process_file()             persistence + status; the ONLY place that touches the DB
+processor.process_file()             coordinates analysis and transactional feature persistence
   │        (HTTP-agnostic: a Celery task could call it unchanged)
   ▼
 analysis.analyze_file()              pure geospatial pipeline, no Django models
@@ -287,10 +320,10 @@ distorts increasingly across its 6° zone; a dataset spanning more than one zone
 
 | Decision | Alternatives considered | Why this choice |
 |---|---|---|
-| **Django + DRF** | FastAPI | I know Django well, and its ORM, admin and migrations cover persistence cheaply. FastAPI would be a good fit for pure async APIs; the geospatial core is framework-independent either way. |
+| **Django + DRF** | FastAPI | Django's ORM, admin and migrations provide persistence and data-management features with little extra setup. FastAPI would also fit an async-first API; the geospatial core is framework-independent. |
 | **GeoPandas / Shapely / PyProj** | Raw Fiona/pyogrio + Shapely; GDAL/OGR bindings | GeoPandas gives format reading, CRS handling and vectorised geometry in one tested stack. pyogrio (GDAL) is its reader, so format support is the same. |
 | **Geometry stored as JSON (GeoJSON), not PostGIS** | GeoDjango + PostGIS | Nothing here needs spatial *queries*: processing happens in Python. Skipping PostGIS keeps setup simple (no GDAL/system libs in Django). It would be the right move once spatial querying is needed. |
-| **UTM (estimated per dataset) for measurement** | One equal-area CRS (e.g. EASE-Grid, Albers); pure geodesic calculation | UTM is accurate for the typical survey-sized site, familiar to GIS users, and cheap. Geodesic maths is the most accurate and I use it as the independent test oracle; equal-area projections need a regional choice. |
+| **UTM (estimated per dataset) for measurement** | One equal-area CRS (e.g. EASE-Grid, Albers); pure geodesic calculation | UTM is accurate for the typical survey-sized site, familiar to GIS users, and cheap. Geodesic calculations provide an independent test oracle; equal-area projections need a regional choice. |
 | **Reject Shapefiles without `.prj`** | Assume EPSG:4326 | A wrong assumption yields plausible but wrong areas, the worst failure mode for a measurement tool. |
 | **One Shapefile per ZIP** | Merge all, or process each | Different shapefiles can have different CRSs, so merging is ambiguous. A clear error is simpler and honest. |
 | **Synchronous processing** | Celery + Redis | The assignment describes upload *and* process in one call. `process_file` is HTTP-agnostic, so moving to a queue means changing one call site. |
@@ -298,7 +331,7 @@ distorts increasingly across its 6° zone; a dataset spanning more than one zone
 | **Dict registry of reader classes** | Factory class, `if/elif` on extension | A small ABC plus a dict shows polymorphism without ceremony; adding a format is one class and one entry. |
 | **Vectorised measurement** (`shapely.area/length` on arrays) | `iterrows()` loop | Order of magnitude faster on large files. |
 | **UUID primary keys** | Integer ids | Not enumerable. (Not authorisation, see limitations.) |
-| **Failed uploads kept as `FAILED` records** | Delete on failure | Auditable and retrievable by the `file_id` returned in the error. |
+| **Processing failures kept as `FAILED` records** | Delete on failure | Once an upload record has been created, retaining its status and error makes the attempt retrievable by the `file_id` returned in the error. |
 | **Fixtures generated in code** | Committed binary files | Reviewable, intention-revealing, no opaque blobs. |
 
 ---
@@ -341,7 +374,7 @@ Failures that happen *after* a record was created (processing errors) also inclu
 
 ## Testing
 
-111 tests, 98% line coverage. Structure:
+111 tests, 97% application-code coverage. Structure:
 
 | Module | Covers |
 |---|---|
@@ -351,8 +384,8 @@ Failures that happen *after* a record was created (processing errors) also inclu
 | `test_readers_and_processing.py` | KML multi-folder/Z/MultiGeometry/malformed/empty; Shapefile per geometry type, projected vs geographic, no `.prj`, null geometry, invalid polygon, feet CRS, property sanitising |
 | `test_api.py` | all three endpoints, every error code, pagination, filtering, rollback on failure, OpenAPI schema, health |
 
-The suite passes on SQLite and on PostgreSQL 16. CI (`.github/workflows/tests.yml`) runs lint, a
-missing-migrations check and the tests against a PostgreSQL service container.
+The full suite passed locally on SQLite. CI (`.github/workflows/tests.yml`) is configured to run lint,
+a missing-migrations check and the tests against a PostgreSQL 16 service container.
 
 ---
 
@@ -365,7 +398,6 @@ missing-migrations check and the tests against a PostgreSQL service container.
 - **Synchronous processing** blocks the request for very large files, and the upload is read fully by Django before validation (put a proxy size limit in front in production).
 - **Measurements are planar and 2D**: Z (elevation) is ignored, so a sloped surface's true surface area/length is not computed.
 - Geometry is stored as JSON; there are no spatial indexes or spatial queries.
-- The Dockerfile and `docker-compose.yml` were written carefully but **not executed in the environment where this was developed** (no Docker available). The app itself was run and tested directly against PostgreSQL 16.
 
 ## Future scope
 
@@ -378,13 +410,11 @@ missing-migrations check and the tests against a PostgreSQL service container.
 - **Streaming/chunked reading** for very large files, and retention/cleanup of stored uploads.
 - Metrics, structured JSON logs and tracing for production observability.
 
-## What I learned
+## Learning takeaways
 
-*(Replace/extend this with your own words before submitting; the points below are what building this taught me.)*
-
-- "Projected" does not mean "safe to measure in": Web Mercator and feet-based CRSs both give wrong numbers unless handled.
+- A CRS being "projected" does not automatically make it suitable for measurement: Web Mercator distorts distances and areas, and feet-based CRSs need unit conversion.
 - KML has no CRS (always WGS84), and GDAL exposes each KML folder as a layer, so reading only the first layer silently drops features.
 - A Shapefile can hold only one geometry type, so mixed-geometry test data has to come from KML.
-- Independent verification beats trusting the library: comparing UTM results with geodesic calculations proved the approach.
-- Keeping geospatial logic free of Django (`analyze_file`) made it easy to test thoroughly and easy to evolve.
+- Independent verification helps catch measurement mistakes: tests compare projected results with geodesic calculations.
+- Keeping geospatial analysis separate from Django and HTTP makes the core pipeline straightforward to test.
 - ZIP files are untrusted input: path traversal, symlinks and decompression bombs are real concerns.
