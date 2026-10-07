@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document><name>Bengaluru survey</name>
+<Folder><name>Plots</name>
+<Placemark><name>Plot A</name><ExtendedData><Data name="owner"><value>Aereo</value></Data></ExtendedData>
+<Polygon><outerBoundaryIs><LinearRing><coordinates>
+77.5946,12.9716,0 77.5956,12.9716,0 77.5956,12.9726,0 77.5946,12.9726,0 77.5946,12.9716,0
+</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>
+</Folder>
+<Folder><name>Infrastructure</name>
+<Placemark><name>Access road</name><LineString><coordinates>
+77.5946,12.9716,900 77.5966,12.9726,905
+</coordinates></LineString></Placemark>
+<Placemark><name>Tower</name><Point><coordinates>77.5946,12.9716,900</coordinates></Point></Placemark>
+<Placemark><name>Mixed (unsupported)</name><MultiGeometry>
+<Point><coordinates>77.5946,12.9716</coordinates></Point>
+<LineString><coordinates>77.5946,12.9716 77.5951,12.972100000000001</coordinates></LineString>
+</MultiGeometry></Placemark>
+</Folder>
+</Document></kml>
