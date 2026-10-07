@@ -615,9 +615,6 @@ In rough priority order for a production version of this service:
 
 ---
 
-## License
-
-MIT. See `LICENSE`.
 
 ---
 
