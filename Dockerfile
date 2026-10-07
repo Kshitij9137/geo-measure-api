@@ -13,6 +13,9 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
+# Robust on Windows checkouts: strip CRLF line endings and ensure the script is executable.
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
+
 RUN useradd --create-home appuser \
     && mkdir -p /app/media /app/staticfiles \
     && chown -R appuser /app

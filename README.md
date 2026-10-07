@@ -39,10 +39,13 @@ API on <http://localhost:8000>, interactive docs on <http://localhost:8000/api/d
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-cp .env.example .env            # optional; without DATABASE_URL it falls back to SQLite
 python manage.py migrate
 python manage.py runserver
 ```
+
+Without `DATABASE_URL` the app uses a local SQLite file, so no database setup is needed. Settings are read from
+**environment variables** (see [Configuration](#configuration)); a `.env` file is *not* loaded automatically by
+Django. Docker Compose does read a `.env` file next to `docker-compose.yml` for the `DJANGO_*` variables.
 
 No system GDAL install is needed: the GeoPandas/pyogrio/Shapely/PyProj wheels bundle GDAL, GEOS and PROJ.
 To use PostgreSQL locally, set `DATABASE_URL=postgres://user:pass@localhost:5432/dbname`.
